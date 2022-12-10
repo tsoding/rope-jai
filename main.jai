@@ -47,17 +47,23 @@ mouse_position :: () -> Vector2 {
     return make_vector2(xx x, xx (window_height - y));
 }
 
-compute_knot_velocity :: (knot: Vector2, nbors: .. Vector2) -> Vector2 {
+compute_knot_velocity :: (using knot: *Knot, graph: []Knot) {
     TARGET_DISTANCE :: 100;
     STIFFNESS :: 20;
-    result := make_vector2(0);
-    for nbors {
-        len := length(knot - it);
-        dir := ifx len > EPSILON then (knot - it)/len else make_vector2(1, 0);
-        target := it + dir*TARGET_DISTANCE;
-        result += (target - knot)*STIFFNESS;
+    velocity = make_vector2(0);
+    for neighbors {
+        neighbor := *graph[it];
+        len := length(position - neighbor.position);
+        dir := ifx len > EPSILON then (position - neighbor.position)/len else make_vector2(1, 0);
+        target := neighbor.position + dir*TARGET_DISTANCE;
+        velocity += (target - position)*STIFFNESS;
     }
-    return result;
+}
+
+Knot :: struct {
+    position: Vector2;
+    velocity: Vector2;
+    neighbors: [..]int;
 }
 
 main :: () {
@@ -65,13 +71,10 @@ main :: () {
     Simp.set_render_target(the_window);
     quit := false;
     drag := -1;
-    ROPE_LENGTH :: 10;
-    rope : [ROPE_LENGTH]Vector2;
-    for *rope {
-        it.x = random_get_zero_to_one()*window_width;
-        it.y = random_get_zero_to_one()*window_height;
-    }
-    rope_velocity : [ROPE_LENGTH]Vector2;
+    knots : [..]Knot;
+    array_add(*knots, .{
+        position = make_vector2(xx (window_width/2), xx (window_height/2))
+    });
     last_time := get_time();
     while !quit {
         now := get_time();
@@ -90,9 +93,22 @@ main :: () {
             if it.type == {
                 case .QUIT; quit = true;
                 case .KEYBOARD; if it.key_code == {
+                    case .MOUSE_BUTTON_RIGHT; if !it.key_pressed {
+                        for *knots {
+                            if length(mouse_position() - it.position) <= KNOT_RADIUS {
+                                new_knot : Knot;
+                                new_knot.position = mouse_position();
+                                array_add(*new_knot.neighbors, it_index);
+                                array_add(*it.neighbors, knots.count);
+                                array_add(*knots, new_knot);
+                                break;
+                            }
+                        }
+                    }
+
                     case .MOUSE_BUTTON_LEFT; if it.key_pressed {
-                        for *rope {
-                            if length(mouse_position() - it) <= KNOT_RADIUS {
+                        for *knots {
+                            if length(mouse_position() - it.position) <= KNOT_RADIUS {
                                 drag = it_index;
                                 break;
                             }
@@ -108,29 +124,23 @@ main :: () {
         Simp.set_shader_for_color();
 
         if drag >= 0 {
-            rope[drag] = mouse_position();
+            knots[drag].position = mouse_position();
         }
 
-        if ROPE_LENGTH > 1 {
-            rope_velocity[0] = compute_knot_velocity(rope[0], rope[1]);
-            for 1..ROPE_LENGTH-2 {
-                rope_velocity[it] = compute_knot_velocity(rope[it], rope[it-1], rope[it+1]);
-            }
-            rope_velocity[ROPE_LENGTH-1] = compute_knot_velocity(rope[ROPE_LENGTH-1], rope[ROPE_LENGTH-2]);
+        for *knots {
+            compute_knot_velocity(it, knots);
+            if it_index != drag then it.position += it.velocity*current_dt;
         }
 
-        for 0..ROPE_LENGTH-1 {
-            if it != drag {
-                rope[it] += rope_velocity[it]*current_dt;
+        for *knot: knots {
+            for knot.neighbors {
+                neighbor := *knots[it];
+                immediate_thicc_line(knot.position, neighbor.position, 30, make_vector4(.5, .5, .5, 1));
             }
         }
 
-        for 0..ROPE_LENGTH-2 {
-            immediate_thicc_line(rope[it], rope[it+1], 30, make_vector4(.5, .5, .5, 1));
-        }
-
-        for 0..ROPE_LENGTH-1 {
-            immediate_circle(rope[it], KNOT_RADIUS, COLOR_GREEN);
+        for *knot: knots {
+            immediate_circle(knot.position, KNOT_RADIUS, COLOR_GREEN);
         }
 
         Simp.swap_buffers(the_window);

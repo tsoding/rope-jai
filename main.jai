@@ -53,13 +53,14 @@ compute_knot_velocity :: (using knot: *Knot, graph: []Knot) {
     velocity = make_vector2(0);
     for neighbors {
         neighbor := *graph[it];
+        if neighbor.dead continue;
         len := length(position - neighbor.position);
         dir := ifx len > EPSILON then (position - neighbor.position)/len else make_vector2(1, 0);
         target := neighbor.position + dir*TARGET_DISTANCE;
         velocity += (target - position)*STIFFNESS;
     }
 
-    for *other: graph {
+    for *other: graph if !other.dead {
         if other != knot && length(knot.position - other.position) <= KNOT_RADIUS*2 {
             len := length(knot.position - other.position);
             dir := ifx len > EPSILON then (knot.position - other.position)/len else make_vector2(1, 0);
@@ -73,6 +74,7 @@ Knot :: struct {
     position: Vector2;
     velocity: Vector2;
     neighbors: [..]int;
+    dead: bool;
 }
 
 main :: () {
@@ -102,8 +104,17 @@ main :: () {
             if it.type == {
                 case .QUIT; quit = true;
                 case .KEYBOARD; if it.key_code == {
-                    case .MOUSE_BUTTON_RIGHT; if !it.key_pressed {
+                    case .MOUSE_BUTTON_MIDDLE; if !it.key_pressed {
                         for *knots {
+                            if length(mouse_position() - it.position) <= KNOT_RADIUS {
+                                it.dead = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    case .MOUSE_BUTTON_RIGHT; if !it.key_pressed {
+                        for *knots if !it.dead {
                             if length(mouse_position() - it.position) <= KNOT_RADIUS {
                                 new_knot : Knot;
                                 new_knot.position = mouse_position();
@@ -116,7 +127,7 @@ main :: () {
                     }
 
                     case .MOUSE_BUTTON_LEFT; if it.key_pressed {
-                        for *knots {
+                        for *knots if !it.dead {
                             if length(mouse_position() - it.position) <= KNOT_RADIUS {
                                 drag = it_index;
                                 break;
@@ -136,19 +147,21 @@ main :: () {
             knots[drag].position = mouse_position();
         }
 
-        for *knots {
+        for *knots if !it.dead {
             compute_knot_velocity(it, knots);
             if it_index != drag then it.position += it.velocity*current_dt;
         }
 
-        for *knot: knots {
+        for *knot: knots if !knot.dead {
             for knot.neighbors {
                 neighbor := *knots[it];
-                immediate_thicc_line(knot.position, neighbor.position, 30, make_vector4(.5, .5, .5, 1));
+                if !neighbor.dead {
+                    immediate_thicc_line(knot.position, neighbor.position, 30, make_vector4(.5, .5, .5, 1));
+                }
             }
         }
 
-        for *knot: knots {
+        for *knot: knots if !knot.dead {
             immediate_circle(knot.position, KNOT_RADIUS, COLOR_GREEN);
         }
 

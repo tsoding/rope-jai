@@ -15,6 +15,9 @@ CIRCLE_RESOLUTION :: 30;
 KNOT_RADIUS       :: 30;
 EPSILON :: 0.000001;
 
+window_width := WINDOW_WIDTH;
+window_height := WINDOW_HEIGHT;
+
 immediate_thicc_line :: (p0: Vector2, p1: Vector2, t: float, color: Vector4) {
     v1 := p1 - p0;
     v2 := make_vector2(-v1.y, v1.x);
@@ -41,7 +44,7 @@ immediate_circle :: (center: Vector2, radius: float, color: Vector4) {
 mouse_position :: () -> Vector2 {
     x, y, success := get_mouse_pointer_position();
     assert(success);
-    return make_vector2(xx x, xx (WINDOW_HEIGHT - y));
+    return make_vector2(xx x, xx (window_height - y));
 }
 
 compute_tail_velocity :: (head: Vector2, tail: Vector2) -> Vector2 {
@@ -54,16 +57,16 @@ compute_tail_velocity :: (head: Vector2, tail: Vector2) -> Vector2 {
 }
 
 main :: () {
-    the_window := create_window(WINDOW_WIDTH, WINDOW_HEIGHT, "Rope Simulation");
+    the_window := create_window(window_width, window_height, "Rope Simulation");
     Simp.set_render_target(the_window);
     quit := false;
     drag := false;
-    head := make_vector2(WINDOW_WIDTH/2, WINDOW_HEIGHT/2);
+    head := make_vector2(xx (window_width/2), xx (window_height/2));
     TAIL_LENGTH :: 20;
     tail : [TAIL_LENGTH]Vector2;
     for *tail {
-        it.x = random_get_zero_to_one()*WINDOW_WIDTH;
-        it.y = random_get_zero_to_one()*WINDOW_HEIGHT;
+        it.x = random_get_zero_to_one()*window_width;
+        it.y = random_get_zero_to_one()*window_height;
     }
     tail_velocity : [TAIL_LENGTH]Vector2;
     last_time := get_time();
@@ -74,6 +77,12 @@ main :: () {
         last_time = now;
 
         update_window_events();
+        for get_window_resizes() {
+            Simp.update_window(it.window);
+            window_width = it.width;
+            window_height = it.height;
+        }
+
         for events_this_frame {
             if it.type == {
                 case .QUIT; quit = true;

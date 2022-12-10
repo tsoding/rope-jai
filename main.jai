@@ -58,6 +58,15 @@ compute_knot_velocity :: (using knot: *Knot, graph: []Knot) {
         target := neighbor.position + dir*TARGET_DISTANCE;
         velocity += (target - position)*STIFFNESS;
     }
+
+    for *other: graph {
+        if other != knot && length(knot.position - other.position) <= KNOT_RADIUS*2 {
+            len := length(knot.position - other.position);
+            dir := ifx len > EPSILON then (knot.position - other.position)/len else make_vector2(1, 0);
+            REPULSION :: 0.5;
+            velocity += (knot.position - other.position)*REPULSION;
+        }
+    }
 }
 
 Knot :: struct {

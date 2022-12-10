@@ -47,28 +47,31 @@ mouse_position :: () -> Vector2 {
     return make_vector2(xx x, xx (window_height - y));
 }
 
-compute_tail_velocity :: (head: Vector2, tail: Vector2) -> Vector2 {
+compute_knot_velocity :: (knot: Vector2, nbors: .. Vector2) -> Vector2 {
     TARGET_DISTANCE :: 100;
-    ELASTICITY :: 20;
-    len := length(tail - head);
-    dir := ifx len > EPSILON then (tail - head)/len else make_vector2(1, 0);
-    target := head + dir*TARGET_DISTANCE;
-    return (target - tail)*ELASTICITY;
+    STIFFNESS :: 20;
+    result := make_vector2(0);
+    for nbors {
+        len := length(knot - it);
+        dir := ifx len > EPSILON then (knot - it)/len else make_vector2(1, 0);
+        target := it + dir*TARGET_DISTANCE;
+        result += (target - knot)*STIFFNESS;
+    }
+    return result;
 }
 
 main :: () {
     the_window := create_window(window_width, window_height, "Rope Simulation");
     Simp.set_render_target(the_window);
     quit := false;
-    drag := false;
-    head := make_vector2(xx (window_width/2), xx (window_height/2));
-    TAIL_LENGTH :: 20;
-    tail : [TAIL_LENGTH]Vector2;
-    for *tail {
+    drag := -1;
+    ROPE_LENGTH :: 10;
+    rope : [ROPE_LENGTH]Vector2;
+    for *rope {
         it.x = random_get_zero_to_one()*window_width;
         it.y = random_get_zero_to_one()*window_height;
     }
-    tail_velocity : [TAIL_LENGTH]Vector2;
+    rope_velocity : [ROPE_LENGTH]Vector2;
     last_time := get_time();
     while !quit {
         now := get_time();
@@ -88,9 +91,14 @@ main :: () {
                 case .QUIT; quit = true;
                 case .KEYBOARD; if it.key_code == {
                     case .MOUSE_BUTTON_LEFT; if it.key_pressed {
-                        drag = length(mouse_position() - head) <= KNOT_RADIUS;
+                        for *rope {
+                            if length(mouse_position() - it) <= KNOT_RADIUS {
+                                drag = it_index;
+                                break;
+                            }
+                        }
                     } else {
-                        drag = false;
+                        drag = -1;
                     }
                 }
             }
@@ -99,24 +107,30 @@ main :: () {
         
         Simp.set_shader_for_color();
 
-        if drag then head = mouse_position();
-
-        tail_velocity[0] = compute_tail_velocity(head, tail[0]);
-        for 1..tail.count-1 {
-            tail_velocity[it] = compute_tail_velocity(tail[it-1], tail[it]);
+        if drag >= 0 {
+            rope[drag] = mouse_position();
         }
 
-        for 0..tail.count-1 {
-            tail[it] += tail_velocity[it]*current_dt;
+        if ROPE_LENGTH > 1 {
+            rope_velocity[0] = compute_knot_velocity(rope[0], rope[1]);
+            for 1..ROPE_LENGTH-2 {
+                rope_velocity[it] = compute_knot_velocity(rope[it], rope[it-1], rope[it+1]);
+            }
+            rope_velocity[ROPE_LENGTH-1] = compute_knot_velocity(rope[ROPE_LENGTH-1], rope[ROPE_LENGTH-2]);
         }
 
-        immediate_thicc_line(head, tail[0], 30, make_vector4(.5, .5, .5, 1));
-        for 1..tail.count-1 {
-            immediate_thicc_line(tail[it-1], tail[it], 30, make_vector4(.5, .5, .5, 1));
+        for 0..ROPE_LENGTH-1 {
+            if it != drag {
+                rope[it] += rope_velocity[it]*current_dt;
+            }
         }
-        immediate_circle(head, KNOT_RADIUS, COLOR_RED);
-        for 0..tail.count-1 {
-            immediate_circle(tail[it], KNOT_RADIUS, COLOR_GREEN);
+
+        for 0..ROPE_LENGTH-2 {
+            immediate_thicc_line(rope[it], rope[it+1], 30, make_vector4(.5, .5, .5, 1));
+        }
+
+        for 0..ROPE_LENGTH-1 {
+            immediate_circle(rope[it], KNOT_RADIUS, COLOR_GREEN);
         }
 
         Simp.swap_buffers(the_window);
